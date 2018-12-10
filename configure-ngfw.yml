@@ -1,0 +1,394 @@
+---
+- name: TechWave Example Ansible Playbook - Create Address Objects and Groups
+  hosts: ngfw
+  connection: local
+  gather_facts: False
+
+  roles:
+    - role: PaloAltoNetworks.paloaltonetworks
+
+  vars:
+    ip_address: "pa-vm-lab.internal.acme.net"
+    username: "admin"
+    password: "password"
+    ip_to_register_http_01: "10.0.10.10"
+    ip_to_register_http_02: "10.0.10.20"
+    ip_to_register_sql_01: "10.0.20.10"
+    tag_names_http: ["vmhttp"]
+    tag_names_sql: ["vmsql"]
+    dag_name_http: "dag-http"
+    dag_name_sql: "dag-sql"
+    dag_match_filter_http: "'vmhttp'"
+    dag_match_filter_sql: "'vmsql'"
+
+  tasks:
+  - name: Create Static Address Object - ansible-http-01
+    panos_object:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      addressobject: 'ansible-http-01'
+      address: 'ansible-http-01.internal.acme.net'
+      address_type: 'fqdn'
+      description: 'HTTP Server 01 - ansible-http-01.internal.acme.net'
+      operation: 'add'
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Create Static Address Object - ansible-http-02
+    panos_object:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      addressobject: 'ansible-http-02'
+      address: 'ansible-http-02.internal.acme.net'
+      address_type: 'fqdn'
+      description: 'HTTP Server 02 - ansible-http-02.internal.acme.net'
+      operation: 'add'
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Create Static Address Object - ansible-sql-01
+    panos_object:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      addressobject: 'ansible-sql-01'
+      address: 'ansible-sql-01.internal.acme.net'
+      address_type: 'fqdn'
+      description: 'SQL Server 01 - ansible-sql-01.internal.acme.net'
+      operation: 'add'
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Create Static Address Group - addr-group-http
+    panos_object:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      addressgroup: 'addr-group-http'
+      static_value: ['ansible-http-01','ansible-http-02']
+      description: 'HTTP Servers Address Group'
+      operation: 'add'
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Create Static Address Group - addr-group-sql
+    panos_object:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      addressgroup: 'addr-group-sql'
+      static_value: ['ansible-sql-01']
+      description: 'SQL Servers Address Group'
+      operation: 'add'
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Create Dynamic Address Group - HTTP
+    panos_dag:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      dag_name: "{{ dag_name_http }}"
+      dag_match_filter: "{{ dag_match_filter_http }}"
+      description: 'Add / create dynamic address group for HTTP Services'
+      operation: 'add'
+      commit: 'False'
+    tags: "create-dag"
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Create Dynamic Address Group - SQL
+    panos_dag:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      dag_name: "{{ dag_name_sql }}"
+      dag_match_filter: "{{ dag_match_filter_sql }}"
+      description: 'Add / create dynamic address group for SQL Services'
+      operation: 'add'
+      commit: 'False'
+    tags: "create-dag"
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Create the tags to map IP addresses - http-01
+    panos_dag_tags:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_to_register: "{{ ip_to_register_http_01 }}"
+      tag_names: "{{ tag_names_http }}"
+      description: "Tags to allow certain IP's to access to HTTP Services"
+      operation: 'add'
+      commit: 'False'
+    tags: "add-dagip"
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Create the tags to map IP addresses - http-02
+    panos_dag_tags:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_to_register: "{{ ip_to_register_http_02 }}"
+      tag_names: "{{ tag_names_http }}"
+      description: "Tags to allow certain IP's to access to HTTP Services"
+      operation: 'add'
+      commit: 'False'
+    tags: "add-dagip"
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Create the tags to map IP addresses - sql-01
+    panos_dag_tags:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_to_register: "{{ ip_to_register_sql_01 }}"
+      tag_names: "{{ tag_names_sql }}"
+      description: "Tags to allow certain IP's to access to SQL Services"
+      operation: 'add'
+      commit: 'False'
+    tags: "add-dagip"
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Add Static Security Policy - HTTP to WAN
+    panos_security_rule:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      operation: 'add'
+      rule_name: 'HTTP Services to WAN - Static'
+      description: 'Permit HTTP Services to WAN'
+      source_zone: ['L3-LAN']
+      destination_zone: ['L3-WAN']
+      source_ip: ['addr-group-http']
+      source_user: ['any']
+      destination_ip: ['any']
+      category: ['any']
+      application: ['App-Group-Linux-Services']
+      service: ['application-default']
+      hip_profiles: ['any']
+      action: 'allow'
+      antivirus: 'AV-Alert'
+      file_blocking: 'FB-Alert'
+      log_setting: 'LFP-Default'
+      spyware: 'AS-Alert'
+      url_filtering: 'URL-Alert'
+      vulnerability: 'IPS-Alert'
+      wildfire_analysis: 'default'
+      tag_name: 'techwave'
+      commit: 'False'
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Add Static Security Policy - WAN to HTTP
+    panos_security_rule:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      operation: 'add'
+      rule_name: 'WAN to HTTP Services - Static'
+      description: 'Permit WAN to HTTP Services'
+      source_zone: ['L3-WAN']
+      destination_zone: ['L3-LAN']
+      source_ip: ['any']
+      source_user: ['any']
+      destination_ip: ['addr-group-http']
+      category: ['any']
+      application: ['web-browsing', 'ssl']
+      service: ['application-default']
+      hip_profiles: ['any']
+      action: 'allow'
+      antivirus: 'AV-Alert'
+      file_blocking: 'FB-Alert'
+      log_setting: 'LFP-Default'
+      spyware: 'AS-Alert'
+      vulnerability: 'IPS-Alert'
+      wildfire_analysis: 'default'
+      tag_name: 'techwave'
+      commit: 'False'
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Add Static Security Policy - SQL to WAN
+    panos_security_rule:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      operation: 'add'
+      rule_name: 'SQL Services to WAN - Static'
+      description: 'Permit SQL Services to WAN'
+      source_zone: ['L3-SQL']
+      destination_zone: ['L3-WAN']
+      source_ip: ['addr-group-sql']
+      source_user: ['any']
+      destination_ip: ['any']
+      category: ['any']
+      application: ['App-Group-Linux-Services']
+      service: ['application-default']
+      hip_profiles: ['any']
+      action: 'allow'
+      antivirus: 'AV-Alert'
+      file_blocking: 'FB-Alert'
+      log_setting: 'LFP-Default'
+      spyware: 'AS-Alert'
+      url_filtering: 'URL-Alert'
+      vulnerability: 'IPS-Alert'
+      wildfire_analysis: 'default'
+      tag_name: 'techwave'
+      commit: 'False'
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Add Static Security Policy - HTTP to SQL
+    panos_security_rule:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      operation: 'add'
+      rule_name: 'HTTP Services to SQL - Static'
+      description: 'Permit HTTP Services to SQL Services'
+      source_zone: ['L3-LAN']
+      destination_zone: ['L3-SQL']
+      source_ip: ['addr-group-http']
+      source_user: ['any']
+      destination_ip: ['addr-group-sql']
+      category: ['any']
+      application: ['mysql']
+      service: ['application-default']
+      hip_profiles: ['any']
+      action: 'allow'
+      antivirus: 'AV-Alert'
+      log_setting: 'LFP-Default'
+      vulnerability: 'IPS-Alert'
+      tag_name: 'techwave'
+      commit: 'False'
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Add Dynamic Security Policy - HTTP to WAN
+    panos_security_rule:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      operation: 'add'
+      rule_name: 'HTTP Services to WAN - Dynamic'
+      description: 'Permit HTTP Services to WAN'
+      source_zone: ['L3-LAN']
+      destination_zone: ['L3-WAN']
+      source_ip: ['dag-http']
+      source_user: ['any']
+      destination_ip: ['any']
+      category: ['any']
+      application: ['App-Group-Linux-Services']
+      service: ['application-default']
+      hip_profiles: ['any']
+      action: 'allow'
+      antivirus: 'AV-Alert'
+      file_blocking: 'FB-Alert'
+      log_setting: 'LFP-Default'
+      spyware: 'AS-Alert'
+      url_filtering: 'URL-Alert'
+      vulnerability: 'IPS-Alert'
+      wildfire_analysis: 'default'
+      tag_name: 'techwave'
+      commit: 'False'
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Add Dynamic Security Policy - WAN to HTTP
+    panos_security_rule:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      operation: 'add'
+      rule_name: 'WAN to HTTP Services - Dynamic'
+      description: 'Permit WAN to HTTP Services'
+      source_zone: ['L3-WAN']
+      destination_zone: ['L3-LAN']
+      source_ip: ['any']
+      source_user: ['any']
+      destination_ip: ['dag-http']
+      category: ['any']
+      application: ['web-browsing', 'ssl']
+      service: ['application-default']
+      hip_profiles: ['any']
+      action: 'allow'
+      antivirus: 'AV-Alert'
+      file_blocking: 'FB-Alert'
+      log_setting: 'LFP-Default'
+      spyware: 'AS-Alert'
+      vulnerability: 'IPS-Alert'
+      wildfire_analysis: 'default'
+      tag_name: 'techwave'
+      commit: 'False'
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Add Dynamic Security Policy - SQL to WAN
+    panos_security_rule:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      operation: 'add'
+      rule_name: 'SQL Services to WAN - Dynamic'
+      description: 'Permit SQL Services to WAN'
+      source_zone: ['L3-SQL']
+      destination_zone: ['L3-WAN']
+      source_ip: ['dag-sql']
+      source_user: ['any']
+      destination_ip: ['any']
+      category: ['any']
+      application: ['App-Group-Linux-Services']
+      service: ['application-default']
+      hip_profiles: ['any']
+      action: 'allow'
+      antivirus: 'AV-Alert'
+      file_blocking: 'FB-Alert'
+      log_setting: 'LFP-Default'
+      spyware: 'AS-Alert'
+      url_filtering: 'URL-Alert'
+      vulnerability: 'IPS-Alert'
+      wildfire_analysis: 'default'
+      tag_name: 'techwave'
+      commit: 'False'
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Add Dynamic Security Policy - HTTP to SQL
+    panos_security_rule:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+      operation: 'add'
+      rule_name: 'HTTP Services to SQL - Dynamic'
+      description: 'Permit HTTP Services to SQL Services'
+      source_zone: ['L3-LAN']
+      destination_zone: ['L3-SQL']
+      source_ip: ['dag-http']
+      source_user: ['any']
+      destination_ip: ['dag-sql']
+      category: ['any']
+      application: ['mysql']
+      service: ['application-default']
+      hip_profiles: ['any']
+      action: 'allow'
+      antivirus: 'AV-Alert'
+      log_setting: 'LFP-Default'
+      vulnerability: 'IPS-Alert'
+      tag_name: 'techwave'
+      commit: 'False'
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
+
+  - name: Commit Configuration
+    panos_commit:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
+    environment:
+      PYTHONHTTPSVERIFY: 0 # do not verify ssl certs at panos devices
