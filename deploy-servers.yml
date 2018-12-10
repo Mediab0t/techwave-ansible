@@ -1,0 +1,87 @@
+---
+- name: TechWave Example Ansible Playbook - Power On Virtual Machines
+  gather_facts: no
+  hosts: esxi
+  tasks:
+    - name: Power on Virtual Machine - ansible-http-01
+      vmware_guest_powerstate:
+        hostname: esxi-01.internal.acme.net
+        username: username
+        password: password
+        validate_certs: no
+        folder: /
+        name: ansible-http-01
+        state: powered-on
+      delegate_to: localhost
+      register: deploy
+
+    - name: Power on Virtual Machine - ansible-http-02
+      vmware_guest_powerstate:
+        hostname: esxi-01.internal.acme.net
+        username: username
+        password: password
+        validate_certs: no
+        folder: /
+        name: ansible-http-02
+        state: powered-on
+      delegate_to: localhost
+      register: deploy
+
+- name: TechWave Example Ansible Playbook - Deploy Common Software
+  gather_facts: no
+  hosts: vm
+  become: true
+  tasks:
+    - name: Update CentOS Software Packages
+      yum:
+        name: "*"
+        state: latest
+
+    - name: Install EPEL Repository
+      yum:
+        name: epel-release
+        state: present
+
+    - name: Install Common Packages
+      yum:
+        name:
+          - open-vm-tools
+          - htop
+          - wget
+          - git
+          - vim
+        state: present
+
+- name: TechWave Example Ansible Playbook - Deploy HTTP Services
+  hosts: http
+  gather_facts: no
+  become: true
+  tasks:
+    - name: Install Apache2 and PHP
+      yum:
+        name:
+        - httpd
+        - php
+        - php-mysql
+        state: latest
+
+    - name: Restart httpd for PHP support
+      service:
+        name: httpd
+        state: restarted
+
+    - name: Ensure httpd is running
+      service:
+        name: httpd
+        state: started
+
+    - name: Configure firewalld to allow tcp/80
+      firewalld:
+        service: http
+        permanent: true
+        state: enabled
+
+    - name: Restart firewalld for changes to take effect
+      service:
+        name: firewalld
+        state: restarted
